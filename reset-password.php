@@ -1,6 +1,7 @@
 <?php
 session_start();
 $error = ""; // Initialize error message
+$success = ""; // Initialize success message
 
 // Error Logging Function
 function logError($message) {
@@ -17,13 +18,12 @@ if (file_exists($configFile)) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
-    $username = trim($_POST['username']);
-    $email = trim($_POST['email']); // Email field
+    $email = trim($_POST['email']);
     $password = trim($_POST['password']);
     $confirm_password = trim($_POST['confirm_password']);
 
     // Validate input fields
-    if (empty($username) || empty($email) || empty($password) || empty($confirm_password)) {
+    if (empty($email) || empty($password) || empty($confirm_password)) {
         $error = "All fields are required!";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = "Invalid email format!";
@@ -33,19 +33,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
         $error = "Password must be at least 6 characters!";
     }
 
-    // Insert User If No Errors
+    // Check if email exists
     if (empty($error)) {
-        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
-        $sql = "INSERT INTO users (username, email, password) VALUES (?, ?, ?)";
-
+        $sql = "SELECT * FROM users WHERE email = ?";
         if ($stmt = $conn->prepare($sql)) {
-            $stmt->bind_param("sss", $username, $email, $hashed_password);
-            if ($stmt->execute()) {
-                header("Location: index.php?signup=success");
-                exit();
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result->num_rows > 0) {
+                $hashed_password = password_hash($password, PASSWORD_BCRYPT);
+                $sql_update = "UPDATE users SET password = ? WHERE email = ?";
+                if ($stmt_update = $conn->prepare($sql_update)) {
+                    $stmt_update->bind_param("ss", $hashed_password, $email);
+                    if ($stmt_update->execute()) {
+                        $success = "Password reset successfully. You can now login with your new password.";
+                    } else {
+                        $error = "Password reset failed. Try again.";
+                        logError("RESET ERROR: Could not update password for $email");
+                    }
+                    $stmt_update->close();
+                } else {
+                    $error = "Database error. Please try again later.";
+                    logError("ERROR: Database statement preparation failed.");
+                }
             } else {
-                $error = "Signup failed! Try again.";
-                logError("SIGNUP ERROR: Could not create account for $username");
+                $error = "No account found with that email!";
             }
             $stmt->close();
         } else {
@@ -62,7 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signup - Expense Tracker</title>
+    <title>Reset Password - Expense Tracker</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/js/all.min.js"></script>
     <style>
@@ -79,7 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
             color: #fff;
         }
 
-        .signup-container {
+        .reset-container {
             background: rgba(255, 255, 255, 0.1);
             padding: 30px;
             border-radius: 15px;
@@ -89,13 +102,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
             width: 350px;
         }
 
-        .signup-container h2 {
+        .reset-container h2 {
             font-size: 24px;
             color: #9b59b6;
             margin-bottom: 20px;
         }
 
-        .signup-container input {
+        .reset-container input {
             width: 100%;
             padding: 12px;
             margin: 10px 0;
@@ -108,11 +121,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
             font-size: 16px;
         }
 
-        .signup-container input:focus {
+        .reset-container input:focus {
             background: rgba(255, 255, 255, 0.3);
         }
 
-        .signup-container button {
+        .reset-container button {
             width: 100%;
             padding: 12px;
             background: #9b59b6;
@@ -124,15 +137,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
             transition: 0.3s;
         }
 
-        .signup-container button:hover {
+        .reset-container button:hover {
             background: #8e44ad;
         }
 
-        .signup-container p {
+        .reset-container p {
             margin-top: 10px;
         }
 
-        .signup-container a {
+        .reset-container a {
             color: #9b59b6;
             text-decoration: none;
             font-weight: bold;
@@ -185,16 +198,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
     </script>
     <?php endif; ?>
 
-    <div class="signup-container">
-        <h2>Signup</h2>
-        <form action="signup.php" method="post">
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="email" name="email" placeholder="Email" required> <!-- Email Field -->
-            <input type="password" name="password" placeholder="Password" required>
-            <input type="password" name="confirm_password" placeholder="Confirm Password" required>
-            <button type="submit">Sign Up <i class="fas fa-user-plus"></i></button>
+    <!-- Success Notification Bubble -->
+    <?php if (!empty($success)) : ?>
+    <div class="error-bubble" style="background: rgba(50, 255, 50, 0.9);" id="successBubble">
+        <i class="fas fa-check-circle"></i> <?php echo $success; ?>
+    </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            let successBubble = document.getElementById("successBubble");
+            successBubble.style.display = "block";
+            setTimeout(() => {
+                successBubble.style.display = "none";
+            }, 5000);
+        });
+    </script>
+    <?php endif; ?>
+
+    <div class="reset-container">
+        <h2>Reset Password</h2>
+        <form action="reset-password.php" method="post">
+            <input type="email" name="email" placeholder="Email" required>
+            <input type="password" name="password" placeholder="New Password" required>
+            <input type="password" name="confirm_password" placeholder="Confirm New Password" required>
+            <button type="submit">Reset Password <i class="fas fa-key"></i></button>
         </form>
-        <p>Already have an account? <a href="index.php">Login</a></p>
+        <p>Remembered your password? <a href="index.php">Login</a></p>
     </div>
 
 </body>

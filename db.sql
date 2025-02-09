@@ -1,10 +1,11 @@
 CREATE DATABASE expense_tracker;
 USE expense_tracker;
 
--- Users Table
+-- Users Table (updated)
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL UNIQUE,  -- New email field
     password VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

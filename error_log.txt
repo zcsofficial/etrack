@@ -2,3 +2,4 @@
 [2025-02-09 16:17:24] ERROR: config.php not found.
 [2025-02-09 16:17:26] ERROR: config.php not found.
 [2025-02-09 16:17:28] ERROR: config.php not found.
+[2025-02-09 16:46:40] LOGIN FAILED: Incorrect password for user ashlin

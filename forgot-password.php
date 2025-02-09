@@ -1,7 +1,7 @@
 <?php
 session_start();
-
-$error = ""; // Initialize error message
+$error = "";
+$success = "";
 
 // Error Logging Function
 function logError($message) {
@@ -19,36 +19,35 @@ if (file_exists($configFile)) {
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
     $username = trim($_POST['username']);
-    $password = trim($_POST['password']);
+    $email = trim($_POST['email']);
 
-    $sql = "SELECT id, username, password FROM users WHERE username = ?";
-    if ($stmt = $conn->prepare($sql)) {
-        $stmt->bind_param("s", $username);
-        $stmt->execute();
-        $stmt->store_result();
-
-        if ($stmt->num_rows == 1) {
-            $stmt->bind_result($id, $username, $hashed_password);
-            $stmt->fetch();
-            if (password_verify($password, $hashed_password)) {
-                $_SESSION['user_id'] = $id;
-                $_SESSION['username'] = $username;
-                header("Location: dashboard.php");
-                exit();
-            } else {
-                $error = "Invalid password!";
-                logError("LOGIN FAILED: Incorrect password for user $username");
-            }
-        } else {
-            $error = "No account found with that username.";
-            logError("LOGIN FAILED: Username $username not found.");
-        }
-        $stmt->close();
-    } else {
-        $error = "Database error. Please try again later.";
-        logError("ERROR: Database statement preparation failed.");
+    // Validate input fields
+    if (empty($username) || empty($email)) {
+        $error = "Username and Email are required!";
     }
-    $conn->close();
+
+    // Check if user exists
+    if (empty($error)) {
+        $sql = "SELECT * FROM users WHERE username = ? AND email = ?";
+        if ($stmt = $conn->prepare($sql)) {
+            $stmt->bind_param("ss", $username, $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                // Generate reset link (you could use a unique token)
+                $reset_link = "http://redexploit.online/reset-password.php?username=$username";
+                $success = "Password reset link sent to your email: $reset_link";
+            } else {
+                $error = "Invalid username or email!";
+                logError("ERROR: Invalid password reset request for $username");
+            }
+            $stmt->close();
+        } else {
+            $error = "Database error. Please try again later.";
+            logError("ERROR: Database statement preparation failed.");
+        }
+        $conn->close();
+    }
 }
 ?>
 
@@ -57,42 +56,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Expense Tracker</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <title>Forgot Password - Expense Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/js/all.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
 
         body {
             background-color: #121212;
             font-family: 'Poppins', sans-serif;
-            margin: 0;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
+            margin: 0;
             color: #fff;
         }
 
-        .login-container {
+        .signup-container {
             background: rgba(255, 255, 255, 0.1);
             padding: 30px;
             border-radius: 15px;
             backdrop-filter: blur(10px);
             box-shadow: 0px 0px 20px rgba(155, 89, 182, 0.5);
             text-align: center;
-            width: 100%;
-            max-width: 400px;
+            width: 350px;
         }
 
-        .login-container h2 {
+        .signup-container h2 {
             font-size: 24px;
             color: #9b59b6;
             margin-bottom: 20px;
         }
 
-        .login-container input {
+        .signup-container input {
             width: 100%;
-            padding: 14px;
+            padding: 12px;
             margin: 10px 0;
             border: none;
             border-radius: 8px;
@@ -103,14 +102,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
             font-size: 16px;
         }
 
-        .login-container input:focus {
+        .signup-container input:focus {
             background: rgba(255, 255, 255, 0.3);
-            box-shadow: 0px 0px 5px rgba(155, 89, 182, 0.5);
         }
 
-        .login-container button {
+        .signup-container button {
             width: 100%;
-            padding: 14px;
+            padding: 12px;
             background: #9b59b6;
             border: none;
             border-radius: 8px;
@@ -120,38 +118,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
             transition: 0.3s;
         }
 
-        .login-container button:hover {
+        .signup-container button:hover {
             background: #8e44ad;
         }
 
-        .login-container p {
+        .signup-container p {
             margin-top: 10px;
         }
 
-        .login-container a {
+        .signup-container a {
             color: #9b59b6;
             text-decoration: none;
             font-weight: bold;
         }
 
-        .login-container .password-container {
-            position: relative;
-        }
-
-        .login-container .password-container input {
-            padding-right: 35px;
-        }
-
-        .login-container .password-container i {
-            position: absolute;
-            top: 50%;
-            right: 10px;
-            transform: translateY(-50%);
-            cursor: pointer;
-        }
-
         /* Bubble Notification for Errors */
-        .error-bubble {
+        .error-bubble, .success-bubble {
             position: fixed;
             top: 20px;
             left: 50%;
@@ -166,6 +148,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
             animation: fadeIn 0.5s ease-in-out;
         }
 
+        .success-bubble {
+            background: rgba(50, 255, 50, 0.9);
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -177,12 +163,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
             }
         }
 
-        /* Responsive Styles */
-        @media (max-width: 600px) {
-            .login-container {
-                width: 90%;
-            }
-        }
     </style>
 </head>
 <body>
@@ -203,30 +183,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
     </script>
     <?php endif; ?>
 
-    <div class="login-container">
-        <h2>Login</h2>
-        <form action="index.php" method="post">
-            <input type="text" name="username" placeholder="Username" required>
-            
-            <div class="password-container">
-                <input type="password" name="password" placeholder="Password" required id="password">
-                <i class="fas fa-eye" id="togglePassword"></i>
-            </div>
-            
-            <button type="submit">Login <i class="fas fa-sign-in-alt"></i></button>
-        </form>
-        <p>Don't have an account? <a href="signup.php">Sign up</a></p>
-        <p><a href="forgot-password.php">Forgot Password?</a></p>
+    <!-- Success Notification Bubble -->
+    <?php if (!empty($success)) : ?>
+    <div class="success-bubble" id="successBubble">
+        <i class="fas fa-check-circle"></i> <?php echo $success; ?>
     </div>
-
     <script>
-        document.getElementById('togglePassword').addEventListener('click', function () {
-            const passwordField = document.getElementById('password');
-            const passwordType = passwordField.type === 'password' ? 'text' : 'password';
-            passwordField.type = passwordType;
-            this.classList.toggle('fa-eye-slash');
+        document.addEventListener("DOMContentLoaded", function () {
+            let successBubble = document.getElementById("successBubble");
+            successBubble.style.display = "block";
+            setTimeout(() => {
+                successBubble.style.display = "none";
+            }, 5000);
         });
     </script>
+    <?php endif; ?>
+
+    <div class="signup-container">
+        <h2>Forgot Password</h2>
+        <form action="forget-password.php" method="post">
+            <input type="text" name="username" placeholder="Username" required>
+            <input type="email" name="email" placeholder="Email" required>
+            <button type="submit">Reset Password <i class="fas fa-lock"></i></button>
+        </form>
+        <p>Remembered your password? <a href="index.php">Login</a></p>
+    </div>
 
 </body>
 </html>

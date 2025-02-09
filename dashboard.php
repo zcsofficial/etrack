@@ -2,8 +2,25 @@
 session_start();
 include 'config.php';
 
-// Fetch Total Money & Expense Log
-$user_id = 1; // Change this to dynamic user sessions
+// Check if the user is logged in (user_id should be stored in session after login)
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+$user_id = $_SESSION['user_id']; // Fetch logged-in user's ID from session
+
+// Session timeout: Logout after 30 minutes of inactivity
+$timeout_duration = 1800; // 30 minutes in seconds
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > $timeout_duration) {
+    session_unset();
+    session_destroy();
+    header("Location: login.php");
+    exit();
+}
+$_SESSION['last_activity'] = time(); // Update last activity time
+
+// Fetch Total Money & Expense Log for the logged-in user
 $total_money = 0;
 
 // Get Total Money from Expenses
@@ -17,6 +34,7 @@ if ($result->num_rows > 0) {
 $ledger = $conn->query("SELECT * FROM expenses WHERE user_id = $user_id ORDER BY created_at DESC");
 
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -46,12 +64,12 @@ $ledger = $conn->query("SELECT * FROM expenses WHERE user_id = $user_id ORDER BY
             border: 1px solid #8A2BE2;
             box-shadow: 0 0 10px #8A2BE2;
         }
-        .btn-add {
+        .btn-add, .btn-logout {
             background-color: #8A2BE2;
             color: #fff;
             border-radius: 20px;
         }
-        .btn-add:hover {
+        .btn-add:hover, .btn-logout:hover {
             background-color: #6a1bb1;
         }
         .ledger {
@@ -104,6 +122,13 @@ $ledger = $conn->query("SELECT * FROM expenses WHERE user_id = $user_id ORDER BY
             <p>No transactions yet.</p>
         <?php endif; ?>
     </div>
+
+    <!-- Logout Button -->
+    <form method="POST" action="logout.php" class="mt-4">
+        <button type="submit" class="btn btn-logout px-4 py-2">
+            <i class="fa-solid fa-sign-out-alt"></i> Logout
+        </button>
+    </form>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
