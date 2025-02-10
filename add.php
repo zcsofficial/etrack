@@ -2,24 +2,29 @@
 session_start();
 include 'config.php';
 
+// Redirect to login if not logged in
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+$user_id = $_SESSION['user_id']; // Logged-in user ID
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $user_id = 1; // Change to session user ID when implementing login
-    $expense_name = trim($_POST['expense_name']);
+    $expense_name = trim(htmlspecialchars($_POST['expense_name']));
     $amount = trim($_POST['amount']);
-    $category = $_POST['category'];
-    $type = $_POST['type']; // "add" or "deduct"
+    $category = trim(htmlspecialchars($_POST['category']));
+    $type = trim($_POST['type']); // "add" or "deduct"
 
     // Error handling
-    if (empty($expense_name) || empty($amount) || !is_numeric($amount)) {
-        $_SESSION['error'] = "Please fill in all fields correctly.";
+    if (empty($expense_name) || empty($amount) || !is_numeric($amount) || $amount <= 0) {
+        $_SESSION['error'] = "Please enter a valid expense name and amount.";
         header("Location: add.php");
         exit();
     }
 
     // Convert amount to negative if it's a deduction
-    if ($type == "deduct") {
-        $amount = -abs($amount);
-    }
+    $amount = ($type == "deduct") ? -abs(intval($amount)) : abs(intval($amount));
 
     // Insert into database
     $stmt = $conn->prepare("INSERT INTO expenses (user_id, expense_name, amount, category) VALUES (?, ?, ?, ?)");
@@ -28,9 +33,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($stmt->execute()) {
         $_SESSION['success'] = "Expense added successfully!";
         header("Location: dashboard.php");
+        exit();
     } else {
         $_SESSION['error'] = "Failed to add expense. Try again.";
+        header("Location: add.php");
+        exit();
     }
+
     $stmt->close();
 }
 ?>
@@ -72,19 +81,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             top: 10px;
             right: 10px;
             padding: 10px 20px;
-            background: red;
             color: #fff;
             border-radius: 5px;
             display: none;
             z-index: 1000;
         }
+        .error { background: red; }
+        .success { background: green; }
     </style>
 </head>
 <body>
 
 <!-- Error Notification -->
 <?php if (isset($_SESSION['error'])): ?>
-    <div class="notification" style="background:red;" id="errorMsg">
+    <div class="notification error" id="errorMsg">
         <i class="fa-solid fa-exclamation-circle"></i> <?php echo $_SESSION['error']; ?>
     </div>
     <?php unset($_SESSION['error']); ?>
@@ -92,7 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <!-- Success Notification -->
 <?php if (isset($_SESSION['success'])): ?>
-    <div class="notification" style="background:green;" id="successMsg">
+    <div class="notification success" id="successMsg">
         <i class="fa-solid fa-check-circle"></i> <?php echo $_SESSION['success']; ?>
     </div>
     <?php unset($_SESSION['success']); ?>
@@ -108,7 +118,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
             <div class="mb-3">
                 <label class="form-label">Amount (₹)</label>
-                <input type="number" class="form-control" name="amount" required>
+                <input type="number" class="form-control" name="amount" required min="1">
             </div>
             <div class="mb-3">
                 <label class="form-label">Category</label>
