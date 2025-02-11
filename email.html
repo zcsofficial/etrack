@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Expense Tracker - Notification</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        /* General Reset */
+        body, table, td, a {
+            font-family: Arial, sans-serif;
+            text-decoration: none;
+        }
+        
+        body {
+            background-color: #000; /* Black Background */
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Email Container */
+        .email-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #1a1a1a; /* Dark Gray */
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(138, 43, 226, 0.8);
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            background-color: #8A2BE2; /* Purple */
+            padding: 15px;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .header h1 {
+            color: #fff;
+            font-size: 24px;
+            margin: 0;
+        }
+
+        /* Email Content */
+        .content {
+            padding: 20px;
+            color: #ddd;
+            font-size: 16px;
+        }
+
+        .content p {
+            margin: 10px 0;
+        }
+
+        /* Expense Details */
+        .expense-details {
+            background: #121212; /* Dark Background */
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+            color: #fff;
+            font-size: 18px;
+        }
+
+        .expense-details strong {
+            color: #8A2BE2;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            font-size: 14px;
+            color: #bbb;
+            padding: 10px;
+        }
+
+        .footer a {
+            color: #8A2BE2;
+            text-decoration: none;
+        }
+
+        /* Responsive Styles */
+        @media (max-width: 600px) {
+            .email-container {
+                width: 90%;
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .content p {
+                font-size: 14px;
+            }
+
+            .expense-details {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="email-container">
+        
+        <!-- Header -->
+        <div class="header">
+            <h1>💰 Expense Tracker Alert</h1>
+        </div>
+
+        <!-- Email Content -->
+        <div class="content">
+            <p>Hello,</p>
+            <p>Your recent transaction has been recorded in the **Expense Tracker** system.</p>
+
+            <!-- Expense Details -->
+            <div class="expense-details">
+                <p><strong>Expense:</strong> {{expense_name}}</p>
+                <p><strong>Amount:</strong> {{amount}}</p>
+                <p><strong>Category:</strong> {{category}}</p>
+                <p><strong>Type:</strong> {{type}}</p>
+            </div>
+
+            <p>If you did not perform this transaction, please check your account immediately.</p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Need help? <a href="mailto:support@expensetracker.com">Contact Support</a></p>
+            <p>&copy; 2025 Expense Tracker | Secure Your Finances</p>
+        </div>
+
+    </div>
+
+</body>
+</html>
