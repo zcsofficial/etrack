@@ -3,3 +3,15 @@
 [2025-02-09 16:17:26] ERROR: config.php not found.
 [2025-02-09 16:17:28] ERROR: config.php not found.
 [2025-02-09 16:46:40] LOGIN FAILED: Incorrect password for user ashlin
+CREATE USER 'adnan'@'localhost' IDENTIFIED BY 'Adnan@66202';
+GRANT ALL PRIVILEGES ON database_name.* TO 'etrack_user'@'localhost';
+FLUSH PRIVILEGES;
+[2025-02-11 17:19:18] LOGIN FAILED: Username adnan@mail.com not found.
+[2025-02-11 17:19:21] LOGIN FAILED: Username adnan@zcs.com not found.
+[2025-02-11 17:19:24] LOGIN FAILED: Username aneesh@yopmail.com not found.
+[2025-02-11 17:19:28] LOGIN FAILED: Username contact.adnanks@gmail.com not found.
+[2025-02-11 17:19:33] LOGIN FAILED: Incorrect password for user adnan
+[2025-02-11 17:19:43] LOGIN FAILED: Incorrect password for user adnan
+[2025-02-24 05:15:14] LOGIN FAILED: Incorrect password for user adnan
+[2025-02-24 05:15:18] LOGIN FAILED: Username contact.adnanks@gmail.com not found.
+[2025-02-24 05:15:26] LOGIN FAILED: Incorrect password for user megha

@@ -1,14 +1,14 @@
 <?php
 session_start();
 
-$error = ""; // Initialize error message
+$error = "";
 
 // Error Logging Function
 function logError($message) {
     file_put_contents("error_log.txt", date("[Y-m-d H:i:s] ") . $message . "\n", FILE_APPEND);
 }
 
-// Try to Include Database Config
+// Include Database Config
 $configFile = 'config.php';
 if (file_exists($configFile)) {
     include $configFile;
@@ -18,37 +18,43 @@ if (file_exists($configFile)) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
-    $username = trim($_POST['username']);
+    $login = trim($_POST['login']); // Can be username or email
     $password = trim($_POST['password']);
 
-    $sql = "SELECT id, username, password FROM users WHERE username = ?";
-    if ($stmt = $conn->prepare($sql)) {
-        $stmt->bind_param("s", $username);
-        $stmt->execute();
-        $stmt->store_result();
-
-        if ($stmt->num_rows == 1) {
-            $stmt->bind_result($id, $username, $hashed_password);
-            $stmt->fetch();
-            if (password_verify($password, $hashed_password)) {
-                $_SESSION['user_id'] = $id;
-                $_SESSION['username'] = $username;
-                header("Location: dashboard.php");
-                exit();
-            } else {
-                $error = "Invalid password!";
-                logError("LOGIN FAILED: Incorrect password for user $username");
-            }
-        } else {
-            $error = "No account found with that username.";
-            logError("LOGIN FAILED: Username $username not found.");
-        }
-        $stmt->close();
+    if (empty($login) || empty($password)) {
+        $error = "Please enter both login and password.";
     } else {
-        $error = "Database error. Please try again later.";
-        logError("ERROR: Database statement preparation failed.");
+        // Check if login is username or email
+        $sql = "SELECT id, username, email, password FROM users WHERE username = ? OR email = ?";
+        if ($stmt = $conn->prepare($sql)) {
+            $stmt->bind_param("ss", $login, $login);
+            $stmt->execute();
+            $stmt->store_result();
+
+            if ($stmt->num_rows == 1) {
+                $stmt->bind_result($id, $username, $email, $hashed_password);
+                $stmt->fetch();
+                if (password_verify($password, $hashed_password)) {
+                    $_SESSION['user_id'] = $id;
+                    $_SESSION['username'] = $username;
+                    $_SESSION['last_activity'] = time(); // Set for session timeout in dashboard
+                    header("Location: dashboard.php");
+                    exit();
+                } else {
+                    $error = "Invalid password!";
+                    logError("LOGIN FAILED: Incorrect password for user $username (email: $email)");
+                }
+            } else {
+                $error = "No account found with that username or email.";
+                logError("LOGIN FAILED: Login $login not found.");
+            }
+            $stmt->close();
+        } else {
+            $error = "Database error. Please try again later.";
+            logError("ERROR: Database statement preparation failed - " . $conn->error);
+        }
+        $conn->close();
     }
-    $conn->close();
 }
 ?>
 
@@ -58,175 +64,79 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Expense Tracker</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8A2BE2',
+                        secondary: '#121212'
+                    },
+                    borderRadius: {
+                        'button': '8px'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
-
-        body {
-            background-color: #121212;
-            font-family: 'Poppins', sans-serif;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            color: #fff;
-        }
-
-        .login-container {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 30px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0px 0px 20px rgba(155, 89, 182, 0.5);
-            text-align: center;
-            width: 100%;
-            max-width: 400px;
-        }
-
-        .login-container h2 {
-            font-size: 24px;
-            color: #9b59b6;
-            margin-bottom: 20px;
-        }
-
-        .login-container input {
-            width: 100%;
-            padding: 14px;
-            margin: 10px 0;
-            border: none;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.2);
-            color: #fff;
-            outline: none;
-            transition: 0.3s;
-            font-size: 16px;
-        }
-
-        .login-container input:focus {
-            background: rgba(255, 255, 255, 0.3);
-            box-shadow: 0px 0px 5px rgba(155, 89, 182, 0.5);
-        }
-
-        .login-container button {
-            width: 100%;
-            padding: 14px;
-            background: #9b59b6;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            color: #fff;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        .login-container button:hover {
-            background: #8e44ad;
-        }
-
-        .login-container p {
-            margin-top: 10px;
-        }
-
-        .login-container a {
-            color: #9b59b6;
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-        .login-container .password-container {
-            position: relative;
-        }
-
-        .login-container .password-container input {
-            padding-right: 35px;
-        }
-
-        .login-container .password-container i {
-            position: absolute;
-            top: 50%;
-            right: 10px;
-            transform: translateY(-50%);
-            cursor: pointer;
-        }
-
-        /* Bubble Notification for Errors */
-        .error-bubble {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 50, 50, 0.9);
-            color: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0px 4px 10px rgba(255, 50, 50, 0.5);
-            font-size: 16px;
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
             display: none;
-            animation: fadeIn 0.5s ease-in-out;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateX(-50%) translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
-            }
-        }
-
-        /* Responsive Styles */
-        @media (max-width: 600px) {
-            .login-container {
-                width: 90%;
-            }
         }
     </style>
 </head>
-<body>
-
-    <!-- Error Notification Bubble -->
-    <?php if (!empty($error)) : ?>
-    <div class="error-bubble" id="errorBubble">
-        <i class="fas fa-exclamation-circle"></i> <?php echo $error; ?>
-    </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            let errorBubble = document.getElementById("errorBubble");
-            errorBubble.style.display = "block";
-            setTimeout(() => {
-                errorBubble.style.display = "none";
-            }, 5000);
-        });
-    </script>
-    <?php endif; ?>
-
-    <div class="login-container">
-        <h2>Login</h2>
-        <form action="index.php" method="post">
-            <input type="text" name="username" placeholder="Username" required>
-            
-            <div class="password-container">
-                <input type="password" name="password" placeholder="Password" required id="password">
-                <i class="fas fa-eye" id="togglePassword"></i>
+<body class="bg-secondary min-h-screen flex items-center justify-center">
+    <div class="bg-gray-800 rounded-lg p-8 w-full max-w-md shadow-lg">
+        <h2 class="text-3xl font-bold text-primary font-['Pacifico'] text-center mb-6">Login</h2>
+        <form id="loginForm" method="POST" action="index.php" class="space-y-4">
+            <div>
+                <label class="block text-white mb-2">Username or Email</label>
+                <input type="text" name="login" class="w-full bg-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Enter username or email" required>
             </div>
-            
-            <button type="submit">Login <i class="fas fa-sign-in-alt"></i></button>
+            <div class="relative">
+                <label class="block text-white mb-2">Password</label>
+                <input type="password" name="password" id="password" class="w-full bg-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Enter password" required>
+                <i class="ri-eye-line absolute top-10 right-4 text-gray-400 cursor-pointer" id="togglePassword"></i>
+            </div>
+            <button type="submit" class="bg-primary text-white w-full py-2 rounded-button flex items-center justify-center gap-2 hover:bg-purple-700 transition">
+                <i class="ri-login-box-line"></i> Login
+            </button>
         </form>
-        <p>Don't have an account? <a href="signup.php">Sign up</a></p>
-        <p><a href="forgot-password.php">Forgot Password?</a></p>
+        <div class="mt-4 text-center text-gray-400">
+            <p>Don't have an account? <a href="signup.php" class="text-primary hover:underline">Sign up</a></p>
+            <p><a href="forgot-password.php" class="text-primary hover:underline">Forgot Password?</a></p>
+        </div>
     </div>
 
     <script>
-        document.getElementById('togglePassword').addEventListener('click', function () {
-            const passwordField = document.getElementById('password');
-            const passwordType = passwordField.type === 'password' ? 'text' : 'password';
-            passwordField.type = passwordType;
-            this.classList.toggle('fa-eye-slash');
+        // Password Toggle
+        const togglePassword = document.getElementById('togglePassword');
+        const passwordField = document.getElementById('password');
+        togglePassword.addEventListener('click', () => {
+            const type = passwordField.type === 'password' ? 'text' : 'password';
+            passwordField.type = type;
+            togglePassword.classList.toggle('ri-eye-line');
+            togglePassword.classList.toggle('ri-eye-off-line');
         });
-    </script>
 
+        // Error Handling with SweetAlert
+        <?php if (!empty($error)): ?>
+            Swal.fire({
+                icon: 'error',
+                title: 'Login Failed',
+                text: '<?php echo $error; ?>',
+                confirmButtonColor: '#8A2BE2',
+                background: '#1f2937',
+                color: '#fff'
+            });
+        <?php endif; ?>
+    </script>
 </body>
 </html>

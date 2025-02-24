@@ -8,7 +8,7 @@ function logError($message) {
     file_put_contents("error_log.txt", date("[Y-m-d H:i:s] ") . $message . "\n", FILE_APPEND);
 }
 
-// Try to Include Database Config
+// Include Database Config
 $configFile = 'config.php';
 if (file_exists($configFile)) {
     include $configFile;
@@ -23,28 +23,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
 
     // Validate input fields
     if (empty($username) || empty($email)) {
-        $error = "Username and Email are required!";
+        $error = "Username and email are required!";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Invalid email format!";
     }
 
     // Check if user exists
     if (empty($error)) {
-        $sql = "SELECT * FROM users WHERE username = ? AND email = ?";
+        $sql = "SELECT id FROM users WHERE username = ? AND email = ?";
         if ($stmt = $conn->prepare($sql)) {
             $stmt->bind_param("ss", $username, $email);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($result->num_rows > 0) {
-                // Generate reset link (you could use a unique token)
-                $reset_link = "http://redexploit.online/reset-password.php?username=$username";
-                $success = "Password reset link sent to your email: $reset_link";
+                $user = $result->fetch_assoc();
+                $user_id = $user['id'];
+                // Generate a unique reset token
+                $token = bin2hex(random_bytes(16));
+                $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+                // Store the token in the database (you'll need a reset_tokens table)
+                $token_sql = "INSERT INTO reset_tokens (user_id, token, expires) VALUES (?, ?, ?)";
+                if ($token_stmt = $conn->prepare($token_sql)) {
+                    $token_stmt->bind_param("iss", $user_id, $token, $expires);
+                    if ($token_stmt->execute()) {
+                        $reset_link = "http://redexploit.online/reset-password.php?token=$token";
+                        $success = "A password reset link has been generated: <a href='$reset_link' class='text-primary underline'>$reset_link</a>";
+                        // TODO: Replace this with actual email sending logic
+                        // e.g., mail($email, "Password Reset", "Click here to reset: $reset_link");
+                        logError("RESET LINK GENERATED: For $username - $reset_link");
+                    } else {
+                        $error = "Failed to generate reset link. Try again.";
+                        logError("RESET ERROR: Could not store token for $username - " . $token_stmt->error);
+                    }
+                    $token_stmt->close();
+                } else {
+                    $error = "Database error. Please try again later.";
+                    logError("ERROR: Token statement preparation failed - " . $conn->error);
+                }
             } else {
-                $error = "Invalid username or email!";
-                logError("ERROR: Invalid password reset request for $username");
+                $error = "No account found with that username and email!";
+                logError("RESET ERROR: Invalid request for $username with email $email");
             }
             $stmt->close();
         } else {
             $error = "Database error. Please try again later.";
-            logError("ERROR: Database statement preparation failed.");
+            logError("ERROR: Database statement preparation failed - " . $conn->error);
         }
         $conn->close();
     }
@@ -57,157 +81,73 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Forgot Password - Expense Tracker</title>
-    <link rel="stylesheet" href="styles.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/js/all.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
-
-        body {
-            background-color: #121212;
-            font-family: 'Poppins', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            color: #fff;
-        }
-
-        .signup-container {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 30px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0px 0px 20px rgba(155, 89, 182, 0.5);
-            text-align: center;
-            width: 350px;
-        }
-
-        .signup-container h2 {
-            font-size: 24px;
-            color: #9b59b6;
-            margin-bottom: 20px;
-        }
-
-        .signup-container input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border: none;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.2);
-            color: #fff;
-            outline: none;
-            transition: 0.3s;
-            font-size: 16px;
-        }
-
-        .signup-container input:focus {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        .signup-container button {
-            width: 100%;
-            padding: 12px;
-            background: #9b59b6;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            color: #fff;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        .signup-container button:hover {
-            background: #8e44ad;
-        }
-
-        .signup-container p {
-            margin-top: 10px;
-        }
-
-        .signup-container a {
-            color: #9b59b6;
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-        /* Bubble Notification for Errors */
-        .error-bubble, .success-bubble {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 50, 50, 0.9);
-            color: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0px 4px 10px rgba(255, 50, 50, 0.5);
-            font-size: 16px;
-            display: none;
-            animation: fadeIn 0.5s ease-in-out;
-        }
-
-        .success-bubble {
-            background: rgba(50, 255, 50, 0.9);
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateX(-50%) translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8A2BE2',
+                        secondary: '#121212'
+                    },
+                    borderRadius: {
+                        'button': '8px'
+                    }
+                }
             }
         }
-
-    </style>
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
-<body>
-
-    <!-- Error Notification Bubble -->
-    <?php if (!empty($error)) : ?>
-    <div class="error-bubble" id="errorBubble">
-        <i class="fas fa-exclamation-circle"></i> <?php echo $error; ?>
-    </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            let errorBubble = document.getElementById("errorBubble");
-            errorBubble.style.display = "block";
-            setTimeout(() => {
-                errorBubble.style.display = "none";
-            }, 5000);
-        });
-    </script>
-    <?php endif; ?>
-
-    <!-- Success Notification Bubble -->
-    <?php if (!empty($success)) : ?>
-    <div class="success-bubble" id="successBubble">
-        <i class="fas fa-check-circle"></i> <?php echo $success; ?>
-    </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            let successBubble = document.getElementById("successBubble");
-            successBubble.style.display = "block";
-            setTimeout(() => {
-                successBubble.style.display = "none";
-            }, 5000);
-        });
-    </script>
-    <?php endif; ?>
-
-    <div class="signup-container">
-        <h2>Forgot Password</h2>
-        <form action="forget-password.php" method="post">
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="email" name="email" placeholder="Email" required>
-            <button type="submit">Reset Password <i class="fas fa-lock"></i></button>
+<body class="bg-secondary min-h-screen flex items-center justify-center">
+    <div class="bg-gray-800 rounded-lg p-8 w-full max-w-md shadow-lg">
+        <h2 class="text-3xl font-bold text-primary font-['Pacifico'] text-center mb-6">Forgot Password</h2>
+        <form id="resetForm" method="POST" action="forgot-password.php" class="space-y-4">
+            <div>
+                <label class="block text-white mb-2">Username</label>
+                <input type="text" name="username" class="w-full bg-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Enter username" required value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>">
+            </div>
+            <div>
+                <label class="block text-white mb-2">Email</label>
+                <input type="email" name="email" class="w-full bg-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Enter email" required value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
+            </div>
+            <button type="submit" class="bg-primary text-white w-full py-2 rounded-button flex items-center justify-center gap-2 hover:bg-purple-700 transition">
+                <i class="ri-lock-password-line"></i> Reset Password
+            </button>
         </form>
-        <p>Remembered your password? <a href="index.php">Login</a></p>
+        <div class="mt-4 text-center text-gray-400">
+            <p>Remembered your password? <a href="index.php" class="text-primary hover:underline">Login</a></p>
+        </div>
     </div>
 
+    <script>
+        // Error Handling with SweetAlert
+        <?php if (!empty($error)): ?>
+            Swal.fire({
+                icon: 'error',
+                title: 'Reset Failed',
+                text: '<?php echo $error; ?>',
+                confirmButtonColor: '#8A2BE2',
+                background: '#1f2937',
+                color: '#fff'
+            });
+        <?php endif; ?>
+
+        // Success Handling with SweetAlert
+        <?php if (!empty($success)): ?>
+            Swal.fire({
+                icon: 'success',
+                title: 'Reset Link Generated',
+                html: '<?php echo $success; ?>',
+                confirmButtonColor: '#8A2BE2',
+                background: '#1f2937',
+                color: '#fff'
+            });
+        <?php endif; ?>
+    </script>
 </body>
 </html>

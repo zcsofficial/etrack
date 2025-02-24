@@ -1,14 +1,14 @@
 <?php
 session_start();
-$error = ""; // Initialize error message
-$success = ""; // Initialize success message
+$error = "";
+$success = "";
 
 // Error Logging Function
 function logError($message) {
     file_put_contents("error_log.txt", date("[Y-m-d H:i:s] ") . $message . "\n", FILE_APPEND);
 }
 
-// Try to Include Database Config
+// Include Database Config
 $configFile = 'config.php';
 if (file_exists($configFile)) {
     include $configFile;
@@ -17,10 +17,17 @@ if (file_exists($configFile)) {
     logError("ERROR: config.php not found.");
 }
 
+// Check for token in URL
+$token = isset($_GET['token']) ? trim($_GET['token']) : '';
+if (empty($token) && $_SERVER["REQUEST_METHOD"] != "POST") {
+    $error = "Invalid or missing reset token!";
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
     $email = trim($_POST['email']);
     $password = trim($_POST['password']);
     $confirm_password = trim($_POST['confirm_password']);
+    $token = trim($_POST['token']);
 
     // Validate input fields
     if (empty($email) || empty($password) || empty($confirm_password)) {
@@ -33,37 +40,66 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
         $error = "Password must be at least 6 characters!";
     }
 
-    // Check if email exists
+    // Verify token and reset password
     if (empty($error)) {
-        $sql = "SELECT * FROM users WHERE email = ?";
+        $sql = "SELECT user_id FROM reset_tokens WHERE token = ? AND expires > NOW()";
         if ($stmt = $conn->prepare($sql)) {
-            $stmt->bind_param("s", $email);
+            $stmt->bind_param("s", $token);
             $stmt->execute();
             $result = $stmt->get_result();
 
             if ($result->num_rows > 0) {
-                $hashed_password = password_hash($password, PASSWORD_BCRYPT);
-                $sql_update = "UPDATE users SET password = ? WHERE email = ?";
-                if ($stmt_update = $conn->prepare($sql_update)) {
-                    $stmt_update->bind_param("ss", $hashed_password, $email);
-                    if ($stmt_update->execute()) {
-                        $success = "Password reset successfully. You can now login with your new password.";
+                $row = $result->fetch_assoc();
+                $user_id = $row['user_id'];
+
+                // Check if email matches the user
+                $user_sql = "SELECT email FROM users WHERE id = ? AND email = ?";
+                if ($user_stmt = $conn->prepare($user_sql)) {
+                    $user_stmt->bind_param("is", $user_id, $email);
+                    $user_stmt->execute();
+                    $user_result = $user_stmt->get_result();
+
+                    if ($user_result->num_rows > 0) {
+                        // Update password
+                        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
+                        $update_sql = "UPDATE users SET password = ? WHERE id = ? AND email = ?";
+                        if ($update_stmt = $conn->prepare($update_sql)) {
+                            $update_stmt->bind_param("sis", $hashed_password, $user_id, $email);
+                            if ($update_stmt->execute()) {
+                                // Delete the used token
+                                $delete_sql = "DELETE FROM reset_tokens WHERE token = ?";
+                                if ($delete_stmt = $conn->prepare($delete_sql)) {
+                                    $delete_stmt->bind_param("s", $token);
+                                    $delete_stmt->execute();
+                                    $delete_stmt->close();
+                                }
+                                $success = "Password reset successfully. You can now log in with your new password.";
+                            } else {
+                                $error = "Password reset failed. Try again.";
+                                logError("RESET ERROR: Could not update password for $email - " . $update_stmt->error);
+                            }
+                            $update_stmt->close();
+                        } else {
+                            $error = "Database error. Please try again later.";
+                            logError("ERROR: Update statement preparation failed - " . $conn->error);
+                        }
                     } else {
-                        $error = "Password reset failed. Try again.";
-                        logError("RESET ERROR: Could not update password for $email");
+                        $error = "No account found with that email!";
+                        logError("RESET ERROR: Email $email does not match user_id $user_id");
                     }
-                    $stmt_update->close();
+                    $user_stmt->close();
                 } else {
                     $error = "Database error. Please try again later.";
-                    logError("ERROR: Database statement preparation failed.");
+                    logError("ERROR: User check statement preparation failed - " . $conn->error);
                 }
             } else {
-                $error = "No account found with that email!";
+                $error = "Invalid or expired reset token!";
+                logError("RESET ERROR: Invalid or expired token $token");
             }
             $stmt->close();
         } else {
             $error = "Database error. Please try again later.";
-            logError("ERROR: Database statement preparation failed.");
+            logError("ERROR: Token verification statement preparation failed - " . $conn->error);
         }
         $conn->close();
     }
@@ -76,154 +112,108 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($error)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reset Password - Expense Tracker</title>
-    <link rel="stylesheet" href="styles.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/js/all.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8A2BE2',
+                        secondary: '#121212'
+                    },
+                    borderRadius: {
+                        'button': '8px'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
-
-        body {
-            background-color: #121212;
-            font-family: 'Poppins', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            color: #fff;
-        }
-
-        .reset-container {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 30px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0px 0px 20px rgba(155, 89, 182, 0.5);
-            text-align: center;
-            width: 350px;
-        }
-
-        .reset-container h2 {
-            font-size: 24px;
-            color: #9b59b6;
-            margin-bottom: 20px;
-        }
-
-        .reset-container input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border: none;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.2);
-            color: #fff;
-            outline: none;
-            transition: 0.3s;
-            font-size: 16px;
-        }
-
-        .reset-container input:focus {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        .reset-container button {
-            width: 100%;
-            padding: 12px;
-            background: #9b59b6;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            color: #fff;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        .reset-container button:hover {
-            background: #8e44ad;
-        }
-
-        .reset-container p {
-            margin-top: 10px;
-        }
-
-        .reset-container a {
-            color: #9b59b6;
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-        /* Bubble Notification for Errors */
-        .error-bubble {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 50, 50, 0.9);
-            color: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0px 4px 10px rgba(255, 50, 50, 0.5);
-            font-size: 16px;
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
             display: none;
-            animation: fadeIn 0.5s ease-in-out;
         }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateX(-50%) translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
-            }
-        }
-
     </style>
 </head>
-<body>
-
-    <!-- Error Notification Bubble -->
-    <?php if (!empty($error)) : ?>
-    <div class="error-bubble" id="errorBubble">
-        <i class="fas fa-exclamation-circle"></i> <?php echo $error; ?>
-    </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            let errorBubble = document.getElementById("errorBubble");
-            errorBubble.style.display = "block";
-            setTimeout(() => {
-                errorBubble.style.display = "none";
-            }, 5000);
-        });
-    </script>
-    <?php endif; ?>
-
-    <!-- Success Notification Bubble -->
-    <?php if (!empty($success)) : ?>
-    <div class="error-bubble" style="background: rgba(50, 255, 50, 0.9);" id="successBubble">
-        <i class="fas fa-check-circle"></i> <?php echo $success; ?>
-    </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            let successBubble = document.getElementById("successBubble");
-            successBubble.style.display = "block";
-            setTimeout(() => {
-                successBubble.style.display = "none";
-            }, 5000);
-        });
-    </script>
-    <?php endif; ?>
-
-    <div class="reset-container">
-        <h2>Reset Password</h2>
-        <form action="reset-password.php" method="post">
-            <input type="email" name="email" placeholder="Email" required>
-            <input type="password" name="password" placeholder="New Password" required>
-            <input type="password" name="confirm_password" placeholder="Confirm New Password" required>
-            <button type="submit">Reset Password <i class="fas fa-key"></i></button>
+<body class="bg-secondary min-h-screen flex items-center justify-center">
+    <div class="bg-gray-800 rounded-lg p-8 w-full max-w-md shadow-lg">
+        <h2 class="text-3xl font-bold text-primary font-['Pacifico'] text-center mb-6">Reset Password</h2>
+        <form id="resetForm" method="POST" action="reset-password.php" class="space-y-4">
+            <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
+            <div>
+                <label class="block text-white mb-2">Email</label>
+                <input type="email" name="email" class="w-full bg-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Enter email" required value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
+            </div>
+            <div class="relative">
+                <label class="block text-white mb-2">New Password</label>
+                <input type="password" name="password" id="password" class="w-full bg-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Enter new password" required>
+                <i class="ri-eye-line absolute top-10 right-4 text-gray-400 cursor-pointer" id="togglePassword"></i>
+            </div>
+            <div class="relative">
+                <label class="block text-white mb-2">Confirm New Password</label>
+                <input type="password" name="confirm_password" id="confirmPassword" class="w-full bg-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Confirm new password" required>
+                <i class="ri-eye-line absolute top-10 right-4 text-gray-400 cursor-pointer" id="toggleConfirmPassword"></i>
+            </div>
+            <button type="submit" class="bg-primary text-white w-full py-2 rounded-button flex items-center justify-center gap-2 hover:bg-purple-700 transition">
+                <i class="ri-key-line"></i> Reset Password
+            </button>
         </form>
-        <p>Remembered your password? <a href="index.php">Login</a></p>
+        <div class="mt-4 text-center text-gray-400">
+            <p>Remembered your password? <a href="index.php" class="text-primary hover:underline">Login</a></p>
+        </div>
     </div>
 
+    <script>
+        // Password Toggle for New Password
+        const togglePassword = document.getElementById('togglePassword');
+        const passwordField = document.getElementById('password');
+        togglePassword.addEventListener('click', () => {
+            const type = passwordField.type === 'password' ? 'text' : 'password';
+            passwordField.type = type;
+            togglePassword.classList.toggle('ri-eye-line');
+            togglePassword.classList.toggle('ri-eye-off-line');
+        });
+
+        // Password Toggle for Confirm Password
+        const toggleConfirmPassword = document.getElementById('toggleConfirmPassword');
+        const confirmPasswordField = document.getElementById('confirmPassword');
+        toggleConfirmPassword.addEventListener('click', () => {
+            const type = confirmPasswordField.type === 'password' ? 'text' : 'password';
+            confirmPasswordField.type = type;
+            toggleConfirmPassword.classList.toggle('ri-eye-line');
+            toggleConfirmPassword.classList.toggle('ri-eye-off-line');
+        });
+
+        // Error Handling with SweetAlert
+        <?php if (!empty($error)): ?>
+            Swal.fire({
+                icon: 'error',
+                title: 'Reset Failed',
+                text: '<?php echo $error; ?>',
+                confirmButtonColor: '#8A2BE2',
+                background: '#1f2937',
+                color: '#fff'
+            });
+        <?php endif; ?>
+
+        // Success Handling with SweetAlert
+        <?php if (!empty($success)): ?>
+            Swal.fire({
+                icon: 'success',
+                title: 'Password Reset',
+                text: '<?php echo $success; ?>',
+                confirmButtonColor: '#8A2BE2',
+                background: '#1f2937',
+                color: '#fff'
+            }).then(() => {
+                window.location.href = 'index.php';
+            });
+        <?php endif; ?>
+    </script>
 </body>
 </html>
