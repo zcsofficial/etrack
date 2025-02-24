@@ -4,7 +4,7 @@ include 'config.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    header("Location: index.php"); // Updated to index.php assuming it's the login page
     exit();
 }
 
@@ -15,7 +15,7 @@ $timeout_duration = 1800; // 30 minutes in seconds
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > $timeout_duration) {
     session_unset();
     session_destroy();
-    header("Location: login.php");
+    header("Location: index.php");
     exit();
 }
 $_SESSION['last_activity'] = time();
@@ -106,97 +106,109 @@ $ledger = $conn->query("SELECT * FROM expenses $where_clause ORDER BY created_at
             -webkit-appearance: none;
             margin: 0;
         }
+        /* Ensure dropdowns don't overflow on small screens */
+        .dropdown-content {
+            right: 0;
+            left: auto;
+            min-width: 100%;
+        }
+        @media (max-width: 640px) {
+            .dropdown-content {
+                width: 100%;
+                max-width: 100%;
+            }
+        }
     </style>
 </head>
 <body class="bg-secondary min-h-screen">
-    <div class="container mx-auto px-4 py-8">
+    <div class="container mx-auto px-4 py-6 sm:py-8">
         <!-- Header -->
-        <header class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-primary font-['Pacifico']">Expense Tracker</h1>
-            <div class="flex items-center gap-4">
-                <span class="text-white"><?php echo date('Y-m-d'); ?></span>
-                <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                    <i class="ri-user-line text-white"></i>
+        <header class="flex flex-col sm:flex-row justify-between items-center mb-6 sm:mb-8 gap-4">
+            <h1 class="text-2xl sm:text-3xl font-bold text-primary font-['Pacifico'] text-center">Expense Tracker</h1>
+            <div class="flex items-center gap-2 sm:gap-4">
+                <span class="text-white text-sm sm:text-base"><?php echo date('Y-m-d'); ?></span>
+                <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
+                    <i class="ri-user-line text-white text-lg sm:text-xl"></i>
                 </div>
             </div>
         </header>
 
         <!-- Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-gray-800 rounded p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-white">Total Collected</h3>
-                    <div class="w-10 h-10 flex items-center justify-center">
-                        <i class="ri-money-dollar-circle-line text-green-500 text-2xl"></i>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+            <div class="bg-gray-800 rounded-lg p-4 sm:p-6">
+                <div class="flex items-center justify-between mb-3 sm:mb-4">
+                    <h3 class="text-white text-sm sm:text-base">Total Collected</h3>
+                    <div class="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center">
+                        <i class="ri-money-dollar-circle-line text-green-500 text-xl sm:text-2xl"></i>
                     </div>
                 </div>
-                <p class="text-3xl font-bold text-green-500">₹<?php echo number_format($total_collected, 2); ?></p>
-                <p class="text-green-400 text-sm">+0% from last month</p>
+                <p class="text-2xl sm:text-3xl font-bold text-green-500">₹<?php echo number_format($total_collected, 2); ?></p>
+                <p class="text-green-400 text-xs sm:text-sm">+0% from last month</p>
             </div>
-            <div class="bg-gray-800 rounded p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-white">Total Deducted</h3>
-                    <div class="w-10 h-10 flex items-center justify-center">
-                        <i class="ri-subtract-line text-red-500 text-2xl"></i>
+            <div class="bg-gray-800 rounded-lg p-4 sm:p-6">
+                <div class="flex items-center justify-between mb-3 sm:mb-4">
+                    <h3 class="text-white text-sm sm:text-base">Total Deducted</h3>
+                    <div class="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center">
+                        <i class="ri-subtract-line text-red-500 text-xl sm:text-2xl"></i>
                     </div>
                 </div>
-                <p class="text-3xl font-bold text-red-500">₹<?php echo number_format($total_deducted, 2); ?></p>
-                <p class="text-red-400 text-sm">+0% from last month</p>
+                <p class="text-2xl sm:text-3xl font-bold text-red-500">₹<?php echo number_format($total_deducted, 2); ?></p>
+                <p class="text-red-400 text-xs sm:text-sm">+0% from last month</p>
             </div>
-            <div class="bg-gray-800 rounded p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-white">Balance</h3>
-                    <div class="w-10 h-10 flex items-center justify-center">
-                        <i class="ri-wallet-3-line text-primary text-2xl"></i>
+            <div class="bg-gray-800 rounded-lg p-4 sm:p-6">
+                <div class="flex items-center justify-between mb-3 sm:mb-4">
+                    <h3 class="text-white text-sm sm:text-base">Balance</h3>
+                    <div class="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center">
+                        <i class="ri-wallet-3-line text-primary text-xl sm:text-2xl"></i>
                     </div>
                 </div>
-                <p class="text-3xl font-bold text-primary">₹<?php echo number_format($balance, 2); ?></p>
-                <p class="text-primary text-sm">Available balance</p>
+                <p class="text-2xl sm:text-3xl font-bold text-primary">₹<?php echo number_format($balance, 2); ?></p>
+                <p class="text-primary text-xs sm:text-sm">Available balance</p>
             </div>
         </div>
 
         <!-- Action Buttons and Filters -->
-        <div class="flex justify-between items-center mb-6">
-            <button onclick="window.location.href='add.php'" class="bg-primary text-white px-6 py-2 rounded-button flex items-center gap-2">
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4 sm:gap-0">
+            <button onclick="window.location.href='add.php'" class="bg-primary text-white px-4 py-2 rounded-button flex items-center gap-2 w-full sm:w-auto text-sm sm:text-base">
                 <i class="ri-add-line"></i>
                 Add Expense
             </button>
-            <div class="flex gap-4">
-                <div class="relative">
-                    <button id="categoryFilterBtn" class="bg-gray-800 text-white px-4 py-2 rounded-button flex items-center gap-2">
+            <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full sm:w-auto">
+                <div class="relative w-full sm:w-auto">
+                    <button id="categoryFilterBtn" class="bg-gray-800 text-white px-3 py-2 rounded-button flex items-center gap-2 w-full justify-center text-sm sm:text-base">
                         <i class="ri-filter-line"></i>
                         Category
                     </button>
-                    <div id="categoryDropdown" class="hidden absolute top-full mt-2 w-48 bg-gray-800 rounded shadow-lg z-10">
+                    <div id="categoryDropdown" class="hidden absolute top-full mt-2 bg-gray-800 rounded shadow-lg z-10 dropdown-content w-48 sm:w-48">
                         <div class="p-2">
                             <?php foreach ($categories as $cat): ?>
-                                <a href="?category=<?php echo urlencode($cat); ?>" class="block text-white p-2 hover:bg-gray-700"><?php echo $cat; ?></a>
+                                <a href="?category=<?php echo urlencode($cat); ?>" class="block text-white p-2 hover:bg-gray-700 text-sm"><?php echo $cat; ?></a>
                             <?php endforeach; ?>
-                            <a href="dashboard.php" class="block text-white p-2 hover:bg-gray-700">All</a>
+                            <a href="dashboard.php" class="block text-white p-2 hover:bg-gray-700 text-sm">All</a>
                         </div>
                     </div>
                 </div>
-                <div class="relative">
-                    <button id="dateFilterBtn" class="bg-gray-800 text-white px-4 py-2 rounded-button flex items-center gap-2">
+                <div class="relative w-full sm:w-auto">
+                    <button id="dateFilterBtn" class="bg-gray-800 text-white px-3 py-2 rounded-button flex items-center gap-2 w-full justify-center text-sm sm:text-base">
                         <i class="ri-calendar-line"></i>
                         Date
                     </button>
-                    <div id="dateDropdown" class="hidden absolute top-full mt-2 w-64 bg-gray-800 rounded shadow-lg z-10">
+                    <div id="dateDropdown" class="hidden absolute top-full mt-2 bg-gray-800 rounded shadow-lg z-10 dropdown-content w-64 sm:w-64">
                         <form method="GET" class="p-4">
                             <div class="mb-4">
-                                <label class="block text-white mb-2">From</label>
-                                <input type="date" name="date_from" class="w-full bg-gray-700 text-white px-3 py-2 rounded" value="<?php echo isset($_GET['date_from']) ? $_GET['date_from'] : ''; ?>">
+                                <label class="block text-white mb-2 text-sm">From</label>
+                                <input type="date" name="date_from" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm" value="<?php echo isset($_GET['date_from']) ? $_GET['date_from'] : ''; ?>">
                             </div>
                             <div class="mb-4">
-                                <label class="block text-white mb-2">To</label>
-                                <input type="date" name="date_to" class="w-full bg-gray-700 text-white px-3 py-2 rounded" value="<?php echo isset($_GET['date_to']) ? $_GET['date_to'] : ''; ?>">
+                                <label class="block text-white mb-2 text-sm">To</label>
+                                <input type="date" name="date_to" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm" value="<?php echo isset($_GET['date_to']) ? $_GET['date_to'] : ''; ?>">
                             </div>
-                            <button type="submit" class="bg-primary text-white w-full py-2 rounded-button">Apply</button>
+                            <button type="submit" class="bg-primary text-white w-full py-2 rounded-button text-sm">Apply</button>
                         </form>
                     </div>
                 </div>
-                <form method="POST" action="logout.php">
-                    <button type="submit" class="bg-gray-800 text-white px-4 py-2 rounded-button flex items-center gap-2">
+                <form method="POST" action="logout.php" class="w-full sm:w-auto">
+                    <button type="submit" class="bg-gray-800 text-white px-3 py-2 rounded-button flex items-center gap-2 w-full justify-center text-sm sm:text-base">
                         <i class="ri-logout-box-line"></i>
                         Logout
                     </button>
@@ -205,33 +217,31 @@ $ledger = $conn->query("SELECT * FROM expenses $where_clause ORDER BY created_at
         </div>
 
         <!-- Recent Expenses -->
-        <div class="bg-gray-800 rounded p-6">
-            <h3 class="text-white text-xl mb-4">Recent Expenses</h3>
+        <div class="bg-gray-800 rounded-lg p-4 sm:p-6">
+            <h3 class="text-white text-lg sm:text-xl mb-4">Recent Expenses</h3>
             <div class="space-y-4">
                 <?php if ($ledger->num_rows > 0): ?>
                     <?php while ($row = $ledger->fetch_assoc()): ?>
-                        <div class="bg-gray-700 rounded p-4 flex items-center justify-between">
-                            <div class="flex items-center gap-4">
-                                <div class="w-10 h-10 bg-<?php echo $row['amount'] < 0 ? 'red' : 'green'; ?>-500 rounded flex items-center justify-center">
-                                    <i class="ri-<?php echo $row['amount'] < 0 ? 'subtract' : 'add'; ?>-line text-white"></i>
+                        <div class="bg-gray-700 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div class="flex items-center gap-4 w-full sm:w-auto">
+                                <div class="w-8 h-8 sm:w-10 sm:h-10 bg-<?php echo $row['amount'] < 0 ? 'red' : 'green'; ?>-500 rounded flex items-center justify-center flex-shrink-0">
+                                    <i class="ri-<?php echo $row['amount'] < 0 ? 'subtract' : 'add'; ?>-line text-white text-lg sm:text-xl"></i>
                                 </div>
-                                <div>
-                                    <h4 class="text-white"><?php echo htmlspecialchars($row['expense_name']); ?> <span class="text-gray-400 text-sm">[<?php echo $row['category']; ?>]</span></h4>
-                                    <p class="text-gray-400 text-sm"><?php echo date('Y-m-d', strtotime($row['created_at'])); ?></p>
+                                <div class="flex-1">
+                                    <h4 class="text-white text-sm sm:text-base"><?php echo htmlspecialchars($row['expense_name']); ?> <span class="text-gray-400 text-xs sm:text-sm">[<?php echo $row['category']; ?>]</span></h4>
+                                    <p class="text-gray-400 text-xs sm:text-sm"><?php echo date('Y-m-d', strtotime($row['created_at'])); ?></p>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-4">
-                                <span class="text-white font-bold">₹<?php echo number_format(abs($row['amount']), 2); ?></span>
-                                <div class="flex gap-2">
-                                    <button class="text-gray-400 hover:text-red-500 delete-btn" data-id="<?php echo $row['id']; ?>">
-                                        <i class="ri-delete-bin-line"></i>
-                                    </button>
-                                </div>
+                            <div class="flex items-center gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                                <span class="text-white font-bold text-sm sm:text-base">₹<?php echo number_format(abs($row['amount']), 2); ?></span>
+                                <button class="text-gray-400 hover:text-red-500 delete-btn flex-shrink-0" data-id="<?php echo $row['id']; ?>">
+                                    <i class="ri-delete-bin-line text-lg sm:text-xl"></i>
+                                </button>
                             </div>
                         </div>
                     <?php endwhile; ?>
                 <?php else: ?>
-                    <p class="text-gray-400">No transactions yet.</p>
+                    <p class="text-gray-400 text-sm sm:text-base">No transactions yet.</p>
                 <?php endif; ?>
             </div>
         </div>
@@ -239,7 +249,7 @@ $ledger = $conn->query("SELECT * FROM expenses $where_clause ORDER BY created_at
 
     <!-- Feedback Messages -->
     <?php if (isset($_GET['status'])): ?>
-        <div class="fixed bottom-4 right-4 bg-<?php echo $_GET['status'] === 'deleted' ? 'green' : 'red'; ?>-500 text-white px-4 py-2 rounded">
+        <div class="fixed bottom-4 right-4 bg-<?php echo $_GET['status'] === 'deleted' ? 'green' : 'red'; ?>-500 text-white px-4 py-2 rounded text-sm sm:text-base">
             <?php echo urldecode($_GET['msg']); ?>
         </div>
     <?php endif; ?>
